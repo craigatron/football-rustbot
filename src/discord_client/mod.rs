@@ -6,12 +6,15 @@ use serenity::{
         channel::Message,
         gateway::Ready,
         interactions::{
-            application_command::{ApplicationCommand, ApplicationCommandOptionType},
+            application_command::{
+                ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOptionType,
+            },
             Interaction, InteractionResponseType,
         },
     },
     prelude::*,
 };
+use std::option::Option;
 
 static REACC_MAP: phf::Map<&str, char> = phf_map! {
     "football" => '🏈',
@@ -46,16 +49,49 @@ struct Handler {
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         println!("got interaction: {:?}", interaction);
-        if let Interaction::ApplicationCommand(command) = interaction {
-            let content = command.data.name.as_str();
-            println!("received slash command named: {}", content);
+        if let Interaction::ApplicationCommand(slash_command) = interaction {
+            let command = slash_command.data.name.as_str();
+            let mut league_name: Option<String> = None;
+            for option in slash_command.data.options.iter() {
+                if option.name == "league" {
+                    league_name = option.value.clone().map(|v| v.as_str().unwrap().to_owned());
+                    break;
+                }
+            }
+            println!(
+                "received slash command: {:?} for league {:?}",
+                slash_command, league_name,
+            );
+            let ffl_client = match league_name {
+                Some(n) => self.get_client_by_name(n),
+                None => {
+                    let category = slash_command
+                        .channel_id
+                        .to_channel(&ctx.http)
+                        .await
+                        .unwrap()
+                        .category();
+                    let category_id = category.unwrap().id.as_u64().to_string();
+                    self.get_client_by_category_id(category_id)
+                }
+            };
 
-            if let Err(e) = command
+            let reply = match command {
+                "matchups" => Some(self.handle_matchups(&ctx).await),
+                "standings" => Some(self.handle_standings(&ctx).await),
+                _ => None,
+            };
+
+            if let Err(e) = slash_command
                 .create_interaction_response(&ctx.http, |response| {
                     response
                         .kind(InteractionResponseType::ChannelMessageWithSource)
                         .interaction_response_data(|message| {
-                            message.content("sorry craig is slow and this isn't ready yet")
+                            message.content(
+                                "```
+sorry craig is slow and this isn't ready yet
+```",
+                            )
                         })
                 })
                 .await
@@ -116,5 +152,43 @@ impl EventHandler for Handler {
         //channel.id().send_message(ctx, |m| {
         //    m.content("TESTING 1 2 3")
         //}).await;
+    }
+}
+
+impl Handler {
+    fn get_client_by_category_id(&self, id: String) -> Option<&FflClient> {
+        let mut ret: Option<&FflClient> = None;
+        for client in self.ffl_clients.iter() {
+            if client.config.discord_category_id == id {
+                ret = Some(&client);
+                break;
+            }
+        }
+        ret
+    }
+
+    fn get_client_by_name(&self, name: String) -> Option<&FflClient> {
+        let mut ret: Option<&FflClient> = None;
+        for client in self.ffl_clients.iter() {
+            if client.config.short_name == name {
+                ret = Some(&client);
+                break;
+            }
+        }
+        ret
+    }
+
+    async fn handle_matchups(&self, ctx: &Context) -> String {
+        "```
+this is a matchups response
+```"
+        .to_string()
+    }
+
+    async fn handle_standings(&self, ctx: &Context) -> String {
+        "```
+this is a standings response
+```"
+        .to_string()
     }
 }
