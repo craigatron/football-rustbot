@@ -1,5 +1,6 @@
 use super::fantasy_client::FflClient;
 use phf::phf_map;
+use serde::Deserialize;
 use serenity::{
     async_trait,
     model::{
@@ -14,6 +15,7 @@ use serenity::{
     },
     prelude::*,
 };
+use std::collections::HashMap;
 use std::option::Option;
 
 static REACC_MAP: phf::Map<&str, char> = phf_map! {
@@ -25,9 +27,25 @@ pub struct DiscordClient {
     client: Client,
 }
 
+#[derive(Deserialize, Debug)]
+struct CovidPlayer {
+    full_name: String,
+    team: String,
+    new: bool,
+    search_rank: Option<u64>,
+}
+
 impl DiscordClient {
-    pub async fn new(token: String, app_id: u64, ffl_clients: Vec<FflClient>) -> DiscordClient {
-        let handler = Handler { ffl_clients };
+    pub async fn new(
+        token: String,
+        app_id: u64,
+        ffl_clients: Vec<FflClient>,
+        covid_json_url: String,
+    ) -> DiscordClient {
+        let handler = Handler {
+            ffl_clients,
+            covid_json_url,
+        };
         let client = Client::builder(token)
             .event_handler(handler)
             .application_id(app_id)
@@ -43,6 +61,7 @@ impl DiscordClient {
 
 struct Handler {
     ffl_clients: Vec<FflClient>,
+    covid_json_url: String,
 }
 
 #[async_trait]
@@ -51,48 +70,49 @@ impl EventHandler for Handler {
         println!("got interaction: {:?}", interaction);
         if let Interaction::ApplicationCommand(slash_command) = interaction {
             let command = slash_command.data.name.as_str();
-            let mut league_name: Option<String> = None;
-            for option in slash_command.data.options.iter() {
-                if option.name == "league" {
-                    league_name = option.value.clone().map(|v| v.as_str().unwrap().to_owned());
-                    break;
+            let mut reply: Option<String> = None;
+            if command == "whosgotcovid" {
+                reply = self.handle_whosgotcovid().await;
+            } else {
+                let mut league_name: Option<String> = None;
+                for option in slash_command.data.options.iter() {
+                    if option.name == "league" {
+                        league_name = option.value.clone().map(|v| v.as_str().unwrap().to_owned());
+                        break;
+                    }
                 }
+                println!(
+                    "received slash command: {:?} for league {:?}",
+                    slash_command, league_name,
+                );
+                let ffl_client = match league_name {
+                    Some(n) => self.get_client_by_name(n),
+                    None => {
+                        let category = slash_command
+                            .channel_id
+                            .to_channel(&ctx.http)
+                            .await
+                            .unwrap()
+                            .category();
+                        let category_id = category.unwrap().id.as_u64().to_string();
+                        self.get_client_by_category_id(category_id)
+                    }
+                };
+
+                reply = match command {
+                    "matchups" => self.handle_matchups().await,
+                    "standings" => self.handle_standings().await,
+                    _ => None,
+                };
             }
-            println!(
-                "received slash command: {:?} for league {:?}",
-                slash_command, league_name,
-            );
-            let ffl_client = match league_name {
-                Some(n) => self.get_client_by_name(n),
-                None => {
-                    let category = slash_command
-                        .channel_id
-                        .to_channel(&ctx.http)
-                        .await
-                        .unwrap()
-                        .category();
-                    let category_id = category.unwrap().id.as_u64().to_string();
-                    self.get_client_by_category_id(category_id)
-                }
-            };
 
-            let reply = match command {
-                "matchups" => Some(self.handle_matchups(&ctx).await),
-                "standings" => Some(self.handle_standings(&ctx).await),
-                _ => None,
-            };
-
+            let answer = reply.unwrap();
+            println!("replying with message {}", answer);
             if let Err(e) = slash_command
                 .create_interaction_response(&ctx.http, |response| {
                     response
                         .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| {
-                            message.content(
-                                "```
-sorry craig is slow and this isn't ready yet
-```",
-                            )
-                        })
+                        .interaction_response_data(|message| message.content(answer))
                 })
                 .await
             {
@@ -140,6 +160,11 @@ sorry craig is slow and this isn't ready yet
                         })
                 });
             }
+            commands.create_application_command(|command| {
+                command
+                    .name("whosgotcovid")
+                    .description("the COVID naughty list")
+            });
             println!("trying to create commands: {:?}", commands);
             commands
         })
@@ -178,17 +203,47 @@ impl Handler {
         ret
     }
 
-    async fn handle_matchups(&self, ctx: &Context) -> String {
-        "```
+    async fn handle_matchups(&self) -> Option<String> {
+        Some(
+            "```
 this is a matchups response
 ```"
-        .to_string()
+            .to_string(),
+        )
     }
 
-    async fn handle_standings(&self, ctx: &Context) -> String {
-        "```
+    async fn handle_standings(&self) -> Option<String> {
+        Some(
+            "```
 this is a standings response
 ```"
-        .to_string()
+            .to_string(),
+        )
+    }
+
+    async fn handle_whosgotcovid(&self) -> Option<String> {
+        let covid_resp = reqwest::get(&self.covid_json_url)
+            .await
+            .unwrap()
+            .json::<HashMap<String, CovidPlayer>>()
+            .await
+            .unwrap();
+        let mut covid_players = vec![];
+        for player in covid_resp.values() {
+            if player.search_rank.unwrap_or(9999999) < 9999999 {
+                let new_signifier = if player.new { " (NEW!)" } else { "" };
+                covid_players.push(format!(
+                    "{}, {}{}",
+                    player.full_name, player.team, new_signifier
+                ))
+            }
+        }
+
+        Some(format!(
+            "```
+{}
+```",
+            covid_players.join("\n")
+        ))
     }
 }

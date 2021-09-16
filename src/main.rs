@@ -11,6 +11,7 @@ const CONFIG_FILE: &str = "config.json";
 struct DiscordConfig {
     app_id: u64,
     bot_token: String,
+    covid_json_url: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -57,6 +58,7 @@ async fn main() {
         config.discord_config.bot_token,
         config.discord_config.app_id,
         ffl_clients,
+        config.discord_config.covid_json_url,
     )
     .await;
     client.start().await.expect("client error");
