@@ -59,7 +59,9 @@ def update_sleeper(event, context):
     file_str = json.dumps(covid_players)
     covid_blob = bucket.blob(COVID_PLAYERS_FILENAME)
     covid_blob.upload_from_string(file_str)
+    covid_blob.make_public()
 
     dated_covid_blob = bucket.blob(
         DATED_COVID_PLAYERS_FORMAT.format(today.isoformat()))
     dated_covid_blob.upload_from_string(file_str)
+    dated_covid_blob.make_public()
