@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import os
+import pytz
 import requests
 from google.cloud import storage
 
@@ -10,6 +11,8 @@ ALL_PLAYERS_FILENAME = 'sleeper_players.json'
 COVID_PLAYERS_FILENAME = 'covid_players.json'
 DATED_COVID_PLAYERS_FORMAT = 'covid_players_{}.json'
 GCS_BUCKET = os.environ['GCS_BUCKET']
+
+logging.getLogger().setLevel(logging.INFO)
 
 
 def update_sleeper(event, context):
@@ -27,10 +30,12 @@ def update_sleeper(event, context):
         for k, v in players.items() if v.get('injury_status') == 'COV'
     }
 
-    today = datetime.date.today()
+    now = datetime.datetime.now(pytz.timezone('America/New_York'))
+    today = now.date()
+    logging.info(f'timezone: {now.tzinfo}')
+    yesterday = today - datetime.timedelta(days=1)
     yesterday_covid_blob = bucket.blob(
-        DATED_COVID_PLAYERS_FORMAT.format(
-            (today - datetime.timedelta(days=1)).isoformat()))
+        DATED_COVID_PLAYERS_FORMAT.format(yesterday.isoformat()))
     if yesterday_covid_blob.exists():
         yesterday_covid_players = json.loads(
             yesterday_covid_blob.download_as_bytes())
@@ -38,7 +43,16 @@ def update_sleeper(event, context):
         yesterday_covid_players = {}
 
     for k, v in covid_players.items():
-        v['new'] = k not in yesterday_covid_players
+        if k in yesterday_covid_players:
+            start_date = yesterday_covid_players[k].get('start_date')
+            if start_date:
+                v['start_date'] = start_date
+            elif v.get('new'):
+                v['start_date'] = yesterday.isoformat()
+            else:
+                v['start_date'] = 'unk'
+        else:
+            v['start_date'] = today.isoformat()
 
     # Sleeper's API apparently doesn't include an injury start date for COVID
     # so we'll just have to infer it by the date we generated the file
