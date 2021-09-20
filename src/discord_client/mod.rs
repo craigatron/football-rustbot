@@ -31,7 +31,7 @@ pub struct DiscordClient {
 struct CovidPlayer {
     full_name: String,
     team: String,
-    new: bool,
+    start_date: Option<String>,
     search_rank: Option<u64>,
 }
 
@@ -231,10 +231,13 @@ this is a standings response
         let mut covid_players = vec![];
         for player in covid_resp.values() {
             if player.search_rank.unwrap_or(9999999) < 9999999 {
-                let new_signifier = if player.new { " (NEW!)" } else { "" };
+                let start_date = match player.start_date.clone() {
+                    Some(d) => format!(" ({})", d),
+                    None => "".to_string(),
+                };
                 covid_players.push(format!(
                     "{}, {}{}",
-                    player.full_name, player.team, new_signifier
+                    player.full_name, player.team, start_date
                 ))
             }
         }
