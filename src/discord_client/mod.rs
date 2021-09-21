@@ -241,12 +241,20 @@ this is a standings response
                 ))
             }
         }
-
-        Some(format!(
-            "```
-{}
-```",
-            covid_players.join("\n")
-        ))
+        if covid_players.len() == 0 {
+            Some(
+                "```
+Nobody, apparently.
+```"
+                .to_string(),
+            )
+        } else {
+            Some(format!(
+                "```
+    {}
+    ```",
+                covid_players.join("\n")
+            ))
+        }
     }
 }
