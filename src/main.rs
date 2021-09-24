@@ -12,6 +12,7 @@ struct DiscordConfig {
     app_id: u64,
     bot_token: String,
     covid_json_url: String,
+    power_ranking_url_format: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -59,6 +60,7 @@ async fn main() {
         config.discord_config.app_id,
         ffl_clients,
         config.discord_config.covid_json_url,
+        config.discord_config.power_ranking_url_format,
     )
     .await;
     client.start().await.expect("client error");

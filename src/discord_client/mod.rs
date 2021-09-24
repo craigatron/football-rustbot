@@ -1,4 +1,4 @@
-use super::fantasy_client::FflClient;
+use super::fantasy_client::{FflClient, LeagueType};
 use phf::phf_map;
 use serde::Deserialize;
 use serenity::{
@@ -35,16 +35,30 @@ struct CovidPlayer {
     search_rank: Option<u64>,
 }
 
+#[derive(Deserialize, Debug)]
+struct PowerResponse {
+    power: Vec<TeamPower>,
+    updated: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct TeamPower {
+    power: String,
+    team: String,
+}
+
 impl DiscordClient {
     pub async fn new(
         token: String,
         app_id: u64,
         ffl_clients: Vec<FflClient>,
         covid_json_url: String,
+        power_ranking_url_format: String,
     ) -> DiscordClient {
         let handler = Handler {
             ffl_clients,
             covid_json_url,
+            power_ranking_url_format,
         };
         let client = Client::builder(token)
             .event_handler(handler)
@@ -62,6 +76,7 @@ impl DiscordClient {
 struct Handler {
     ffl_clients: Vec<FflClient>,
     covid_json_url: String,
+    power_ranking_url_format: String,
 }
 
 #[async_trait]
@@ -97,11 +112,13 @@ impl EventHandler for Handler {
                         let category_id = category.unwrap().id.as_u64().to_string();
                         self.get_client_by_category_id(category_id)
                     }
-                };
+                }
+                .unwrap();
 
                 reply = match command {
                     "matchups" => self.handle_matchups().await,
                     "standings" => self.handle_standings().await,
+                    "power" => self.handle_power(&ffl_client).await,
                     _ => None,
                 };
             }
@@ -141,6 +158,7 @@ impl EventHandler for Handler {
             for command_config in vec![
                 ("matchups", "Fetch this week's matchups"),
                 ("standings", "Fetch the current standings"),
+                ("power", "Fetch power rankings"),
             ] {
                 commands.create_application_command(|command| {
                     command
@@ -249,11 +267,43 @@ Nobody, apparently.
                 .to_string(),
             )
         } else {
+            Some(format!("```{}```", covid_players.join("\n")))
+        }
+    }
+
+    async fn handle_power(&self, ffl_client: &FflClient) -> Option<String> {
+        let id = &ffl_client.config.league_id;
+        let league_type = match ffl_client.config.league_type {
+            LeagueType::SLEEPER => "sleeper",
+            LeagueType::ESPN => "espn",
+            _ => panic!("wtf league type is that"),
+        };
+
+        if league_type == "sleeper" {
+            Some("power rankings for sleeper not implemented yet sorryyyyyyyy".to_string())
+        } else {
+            let url = self
+                .power_ranking_url_format
+                .clone()
+                .replace("<LEAGUE_ID>", id)
+                .replace("<LEAGUE_TYPE>", league_type);
+            let power_resp = reqwest::get(url)
+                .await
+                .unwrap()
+                .json::<PowerResponse>()
+                .await
+                .unwrap();
+            let mut lines = vec![];
+            for team in power_resp.power.iter() {
+                lines.push(format!("{} ({})", team.team, team.power))
+            }
+            lines.push(format!("updated {}", power_resp.updated));
+
             Some(format!(
                 "```
-    {}
-    ```",
-                covid_players.join("\n")
+{}
+```",
+                lines.join("\n")
             ))
         }
     }
