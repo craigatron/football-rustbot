@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import os
@@ -10,7 +11,7 @@ ESPN_S2 = os.environ['ESPN_S2']
 ESPN_SWID = os.environ['ESPN_SWID']
 GCS_BUCKET = os.environ['GCS_BUCKET']
 LEAGUE_CONFIG = os.environ['LEAGUE_CONFIG']
-POWER_FILENAME = 'power.json'
+POWER_FILENAME_FORMAT = 'power_{}_{}.json'
 
 
 def update_power(event, context):
@@ -18,16 +19,17 @@ def update_power(event, context):
     # [{'id': _ID_, 'type': 'espn'|'sleeper'},...]
     league_config = json.loads(LEAGUE_CONFIG)
 
-    power_rankings = {}
-    for league in league_config:
-        league_power = _calculate_league_power(league['id'], league['type'])
-        power_rankings[f'{league["type"]}_{league["id"]}'] = league_power
-
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET)
-    blob = bucket.blob(POWER_FILENAME)
-    blob.upload_from_string(json.dumps(power_rankings))
-    blob.make_public()
+
+    now = datetime.datetime.now()
+    for league in league_config:
+        league_power = _calculate_league_power(league['id'], league['type'])
+        league_power['updated'] = now.isoformat()
+        blob = bucket.blob(
+            POWER_FILENAME_FORMAT.format(league['type'], league['id']))
+        blob.upload_from_string(json.dumps(league_power))
+        blob.make_public()
 
 
 def _calculate_league_power(league_id, league_type):
