@@ -25,10 +25,10 @@ def update_power(event, context):
     now = datetime.datetime.now()
     for league in league_config:
         league_power = _calculate_league_power(league['id'], league['type'])
-        league_power['updated'] = now.isoformat()
+        file_json = {'power': league_power, 'updated': now.isoformat()}
         blob = bucket.blob(
             POWER_FILENAME_FORMAT.format(league['type'], league['id']))
-        blob.upload_from_string(json.dumps(league_power))
+        blob.upload_from_string(json.dumps(file_json))
         blob.make_public()
 
 
