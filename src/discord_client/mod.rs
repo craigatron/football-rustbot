@@ -7,9 +7,7 @@ use serenity::{
         channel::Message,
         gateway::Ready,
         interactions::{
-            application_command::{
-                ApplicationCommand, ApplicationCommandInteraction, ApplicationCommandOptionType,
-            },
+            application_command::{ApplicationCommand, ApplicationCommandOptionType},
             Interaction, InteractionResponseType,
         },
     },
@@ -100,15 +98,25 @@ impl EventHandler for Handler {
                     "received slash command: {:?} for league {:?}",
                     slash_command, league_name,
                 );
+                println!("channel ID: {:?}", slash_command.channel_id);
                 let ffl_client = match league_name {
                     Some(n) => self.get_client_by_name(n),
                     None => {
+                        // what the shit is this I just want to get the category ID
                         let category = slash_command
                             .channel_id
                             .to_channel(&ctx.http)
                             .await
                             .unwrap()
+                            .guild()
+                            .unwrap()
+                            .category_id
+                            .unwrap()
+                            .to_channel(&ctx.http)
+                            .await
+                            .unwrap()
                             .category();
+                        println!("attempting to get league from category {:?}", category);
                         let category_id = category.unwrap().id.as_u64().to_string();
                         self.get_client_by_category_id(category_id)
                     }
@@ -278,6 +286,7 @@ Nobody, apparently.
             LeagueType::ESPN => "espn",
             _ => panic!("wtf league type is that"),
         };
+        println!("getting power for league {} of type {}", id, league_type);
 
         if league_type == "sleeper" {
             Some("power rankings for sleeper not implemented yet sorryyyyyyyy".to_string())
@@ -287,6 +296,7 @@ Nobody, apparently.
                 .clone()
                 .replace("<LEAGUE_ID>", id)
                 .replace("<LEAGUE_TYPE>", league_type);
+            println!("fetching power from URL {}", url);
             let power_resp = reqwest::get(url)
                 .await
                 .unwrap()
@@ -297,7 +307,7 @@ Nobody, apparently.
             for team in power_resp.power.iter() {
                 lines.push(format!("{} ({})", team.team, team.power))
             }
-            lines.push(format!("updated {}", power_resp.updated));
+            lines.push(format!("\nupdated {}", power_resp.updated));
 
             Some(format!(
                 "```
