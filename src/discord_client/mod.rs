@@ -49,11 +49,13 @@ impl DiscordClient {
     pub async fn new(
         token: String,
         app_id: u64,
+        ignore_reaccs: Vec<String>,
         ffl_clients: Vec<FflClient>,
         covid_json_url: String,
         power_ranking_url_format: String,
     ) -> DiscordClient {
         let handler = Handler {
+            ignore_reaccs,
             ffl_clients,
             covid_json_url,
             power_ranking_url_format,
@@ -72,6 +74,7 @@ impl DiscordClient {
 }
 
 struct Handler {
+    ignore_reaccs: Vec<String>,
     ffl_clients: Vec<FflClient>,
     covid_json_url: String,
     power_ranking_url_format: String,
@@ -148,6 +151,13 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: Context, message: Message) {
         println!("message received: {:?}", message);
+        if self
+            .ignore_reaccs
+            .contains(&message.author.id.as_u64().to_string())
+        {
+            println!("not reaccing message");
+            return;
+        }
         for (key, value) in REACC_MAP.into_iter() {
             if message.content.to_ascii_lowercase().contains(key) {
                 message.react(&ctx.http, *value).await.unwrap();

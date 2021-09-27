@@ -11,6 +11,7 @@ const CONFIG_FILE: &str = "config.json";
 struct DiscordConfig {
     app_id: u64,
     bot_token: String,
+    ignore_reaccs: Vec<String>,
     covid_json_url: String,
     power_ranking_url_format: String,
 }
@@ -58,6 +59,7 @@ async fn main() {
     let mut client = discord_client::DiscordClient::new(
         config.discord_config.bot_token,
         config.discord_config.app_id,
+        config.discord_config.ignore_reaccs,
         ffl_clients,
         config.discord_config.covid_json_url,
         config.discord_config.power_ranking_url_format,
