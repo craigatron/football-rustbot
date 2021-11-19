@@ -1,0 +1,24 @@
+<html>
+
+<head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+    <style>
+        html,
+        body {
+            font-family: 'Roboto', sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Week ${week}</h2>
+    <ul>
+        % for matchup in matchups:
+        <li><a href="${matchup['url']}">${matchup['name']}</a></li>
+        % endfor
+    </ul>
+</body>
+
+</html>

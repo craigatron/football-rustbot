@@ -162,6 +162,12 @@ impl EventHandler for Handler {
             if message.content.to_ascii_lowercase().contains(key) {
                 message.react(&ctx.http, *value).await.unwrap();
             }
+            if message.content.to_ascii_lowercase().contains("69") {
+                message.react(&ctx.http, '🇳').await.unwrap();
+                message.react(&ctx.http, '🇮').await.unwrap();
+                message.react(&ctx.http, '🇨').await.unwrap();
+                message.react(&ctx.http, '🇪').await.unwrap();
+            }
         }
         for m in message.mentions.iter() {
             if m.bot {

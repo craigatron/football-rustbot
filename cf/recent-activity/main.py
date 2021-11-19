@@ -1,7 +1,9 @@
+import asyncio
 import datetime
 import json
 import logging
 import os
+import discord
 from espn_api.football import League
 from google.cloud import storage
 
@@ -11,10 +13,15 @@ ESPN_S2 = os.environ['ESPN_S2']
 ESPN_SWID = os.environ['ESPN_SWID']
 GCS_BUCKET = os.environ['GCS_BUCKET']
 LEAGUE_CONFIG = os.environ['LEAGUE_CONFIG']
+DISCORD_BOT_ID = os.environ['DISCORD_BOT_ID']
 ACTIVITY_FILENAME_FORMAT = 'activity_{}_{}.json'
 
 
 def update_recent_activity(event, context):
+    asyncio.run(_update_recent_activity())
+
+
+async def _update_recent_activity():
     # load leagues
     # [{'id': _ID_, 'type': 'espn'|'sleeper'},...]
     league_config = json.loads(LEAGUE_CONFIG)
@@ -22,15 +29,26 @@ def update_recent_activity(event, context):
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET)
 
-    for league in league_config:
-        if league['type'] != 'espn':
-            logging.error(f"Can't handle league with type: {league['type']}")
-            continue
+    logging.info('starting client')
+    client = discord.Client()
 
-        _update_espn_activity(bucket, league['id'])
+    @client.event
+    async def on_ready():
+        for league in league_config:
+            if league['type'] != 'espn':
+                logging.error(
+                    f"Can't handle league with type: {league['type']}")
+                continue
+
+        _update_espn_activity(bucket, client, league['id'],
+                              league.get('channel'))
+        await client.close()
+        logging.info('exiting')
+
+    await client.start(DISCORD_BOT_ID)
 
 
-def _update_espn_activity(bucket, league_id):
+async def _update_espn_activity(bucket, discord_client, league_id, channel_id):
     blob = bucket.blob(ACTIVITY_FILENAME_FORMAT.format('espn', league_id))
     if blob.exists():
         activity_json = json.loads(blob.download_as_bytes())
@@ -64,3 +82,7 @@ def _update_espn_activity(bucket, league_id):
 
     blob.upload_from_string(json.dumps(activity_json))
     blob.make_public()
+
+    logging.info(f'new additions:\n{new_additions}')
+    if new_additions and channel_id:
+        channel = await discord_client.fetch_channel(channel_id)
