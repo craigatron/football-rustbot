@@ -1,5 +1,6 @@
 use super::fantasy_client::{FflClient, LeagueType};
 use phf::phf_map;
+use regex::Regex;
 use serde::Deserialize;
 use serenity::{
     async_trait,
@@ -86,7 +87,7 @@ impl EventHandler for Handler {
         println!("got interaction: {:?}", interaction);
         if let Interaction::ApplicationCommand(slash_command) = interaction {
             let command = slash_command.data.name.as_str();
-            let mut reply: Option<String> = None;
+            let reply: Option<String>;
             if command == "whosgotcovid" {
                 reply = self.handle_whosgotcovid().await;
             } else {
@@ -158,11 +159,14 @@ impl EventHandler for Handler {
             println!("not reaccing message");
             return;
         }
+        let re = Regex::new(r"(<@!\d+>)|(<#\d+>)").unwrap();
+        let content = re.replace_all(message.content.as_str(), "");
+        println!("trimmed message: {}", content);
         for (key, value) in REACC_MAP.into_iter() {
-            if message.content.to_ascii_lowercase().contains(key) {
+            if content.to_ascii_lowercase().contains(key) {
                 message.react(&ctx.http, *value).await.unwrap();
             }
-            if message.content.to_ascii_lowercase().contains("69") {
+            if content.to_ascii_lowercase().contains("69") {
                 message.react(&ctx.http, '🇳').await.unwrap();
                 message.react(&ctx.http, '🇮').await.unwrap();
                 message.react(&ctx.http, '🇨').await.unwrap();
