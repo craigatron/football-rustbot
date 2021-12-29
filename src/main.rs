@@ -11,9 +11,15 @@ const CONFIG_FILE: &str = "config.json";
 struct DiscordConfig {
     app_id: u64,
     bot_token: String,
-    ignore_reaccs: Vec<String>,
+    ignore_reaccs: Vec<IgnoreConfig>,
     covid_json_url: String,
     power_ranking_url_format: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct IgnoreConfig {
+    user_id: String,
+    ignore_char: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -56,10 +62,15 @@ async fn main() {
         ffl_clients.push(ffl_client);
     }
 
+    let mut ignore_pairs: Vec<(String, String)> = vec![];
+    for ignore_config in config.discord_config.ignore_reaccs {
+        ignore_pairs.push((ignore_config.user_id, ignore_config.ignore_char));
+    }
+
     let mut client = discord_client::DiscordClient::new(
         config.discord_config.bot_token,
         config.discord_config.app_id,
-        config.discord_config.ignore_reaccs,
+        ignore_pairs,
         ffl_clients,
         config.discord_config.covid_json_url,
         config.discord_config.power_ranking_url_format,

@@ -50,7 +50,7 @@ impl DiscordClient {
     pub async fn new(
         token: String,
         app_id: u64,
-        ignore_reaccs: Vec<String>,
+        ignore_reaccs: Vec<(String, String)>,
         ffl_clients: Vec<FflClient>,
         covid_json_url: String,
         power_ranking_url_format: String,
@@ -75,7 +75,7 @@ impl DiscordClient {
 }
 
 struct Handler {
-    ignore_reaccs: Vec<String>,
+    ignore_reaccs: Vec<(String, String)>,
     ffl_clients: Vec<FflClient>,
     covid_json_url: String,
     power_ranking_url_format: String,
@@ -152,26 +152,24 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: Context, message: Message) {
         println!("message received: {:?}", message);
-        if self
-            .ignore_reaccs
-            .contains(&message.author.id.as_u64().to_string())
-        {
-            println!("not reaccing message");
-            return;
-        }
-        let re = Regex::new(r"(<@!\d+>)|(<#\d+>)").unwrap();
+        let re = Regex::new(r"(<@!\d+>)|(<#\d+>)|(<@\d+>)|(<@&\d+)").unwrap();
         let content = re.replace_all(message.content.as_str(), "");
         println!("trimmed message: {}", content);
         for (key, value) in REACC_MAP.into_iter() {
+            let ignore_key = (message.author.id.as_u64().to_string(), value.to_string());
             if content.to_ascii_lowercase().contains(key) {
-                message.react(&ctx.http, *value).await.unwrap();
+                if self.ignore_reaccs.contains(&ignore_key) {
+                    println!("not reaccing message for key: {:?}", ignore_key);
+                } else {
+                    message.react(&ctx.http, *value).await.unwrap();
+                }
             }
-            if content.to_ascii_lowercase().contains("69") {
-                message.react(&ctx.http, '🇳').await.unwrap();
-                message.react(&ctx.http, '🇮').await.unwrap();
-                message.react(&ctx.http, '🇨').await.unwrap();
-                message.react(&ctx.http, '🇪').await.unwrap();
-            }
+        }
+        if content.to_ascii_lowercase().contains("69") {
+            message.react(&ctx.http, '🇳').await.unwrap();
+            message.react(&ctx.http, '🇮').await.unwrap();
+            message.react(&ctx.http, '🇨').await.unwrap();
+            message.react(&ctx.http, '🇪').await.unwrap();
         }
         for m in message.mentions.iter() {
             if m.bot {
