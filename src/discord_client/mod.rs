@@ -152,7 +152,8 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: Context, message: Message) {
         println!("message received: {:?}", message);
-        let re = Regex::new(r"(<@!\d+>)|(<#\d+>)|(<@\d+>)|(<@&\d+)").unwrap();
+        // remove user/channel references and links
+        let re = Regex::new(r"(<@!\d+>)|(<#\d+>)|(<@\d+>)|(<@&\d+)|((https|http)?://(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*))").unwrap();
         let content = re.replace_all(message.content.as_str(), "");
         println!("trimmed message: {}", content);
         for (key, value) in REACC_MAP.into_iter() {
